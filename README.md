@@ -1,2 +1,2 @@
 # sockfile
-it is make for big file transport(like block-device remote backup)
+it is not secure yet,do not use it
