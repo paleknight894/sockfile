@@ -8,13 +8,20 @@
 #include<arpa/inet.h>
 #include<stdio.h>
 #include<stdlib.h>
+struct package
+{
+    uint64_t data_size;
+    char data[4096];
+};
+
 int main(int argc,char *argv[])
 {
+	uint8_t loop_sync=~0;
+	int8_t temp[sizeof(struct package)];
+	struct package package1;
 	int i;
 	uint64_t size;
 	uint64_t size2,j;
-	uint8_t mask=0;
-	mask=~mask;
 	struct addrinfo hints,*res;
 	unsigned int sockfd,filefd,new_fd;
 	struct sockaddr_storage their_addr;
@@ -52,7 +59,7 @@ int main(int argc,char *argv[])
 	char a[4096];
 	addr_size=sizeof(their_addr);
 	pid_t pid;
-	filefd=open(argv[3],O_WRONLY|O_CREAT|O_TRUNC,mask);
+	filefd=open(argv[3],O_WRONLY|O_CREAT|O_TRUNC,S_IRUSR|S_IWUSR);
 	if(filefd<0)
 	{
 		perror("open file error\n");
@@ -65,30 +72,22 @@ int main(int argc,char *argv[])
 		j=j+read(new_fd,(uint8_t *)(&size)[j],sizeof(size)-j);
 	for(;size>0;)
 	{
-		j=read(new_fd,&size2,sizeof(size2));
-		while(j<sizeof(size2))
-			j=j+read(new_fd,(uint8_t *)(&size2)[j],sizeof(size2)-j);
-		i=read(new_fd,a,size2);
-		write(filefd,a,i);
-		if(i<size2)
+		i=read(new_fd,temp,sizeof(temp));
+		while(i<sizeof(temp))
 		{
-			while(i<size2)
-			{
-				j=read(new_fd,a,size2-i);
-				write(filefd,a,j);
-				i=i+j;
-			}
+			i+=read(new_fd,&(temp[i]),sizeof(temp)-i);
 		}
-//		printf("i=%d size2=%ld\n",i,size2);
-		if(i<=0)
+		memcpy(&package1,temp,sizeof(struct package));
+		write(filefd,&package1.data,package1.data_size);
+		size=size-package1.data_size;
+		loop_sync--;
+		if(loop_sync==0)
 		{
-			perror("got early EOF\n");
-			exit(-2);
+			j=write(new_fd,check,3);
+			while(j<3)
+				j=j+write(new_fd,&check[j],3-j);
+			loop_sync=~loop_sync;
 		}
-		size=size-i;
-		j=write(new_fd,check,3);
-		while(j<3)
-			j=j+write(new_fd,&check[j],3-j);
 	}
 	close(new_fd);
 	close(filefd);

@@ -8,10 +8,17 @@
 #include<sys/ioctl.h>
 #include<stdlib.h>
 #include<linux/fs.h>
+struct package
+{
+	uint64_t data_size;
+	char data[4096];
+};
 int main(int argc,char *argv[])
 {
+	uint8_t temp[sizeof(struct package)],loop_sync=~0;
 	uint64_t size;
-	uint64_t i,size2,b;
+	uint64_t i;
+	struct package package1;
 	unsigned int sockfd,filefd;
 	struct addrinfo hints,*res;
 	struct stat statbuf;
@@ -53,30 +60,30 @@ int main(int argc,char *argv[])
 	else
 		size=statbuf.st_size;
 	char check[3];
-	b=write(sockfd,&size,sizeof(size));
-	while(b<sizeof(size))
+	i=write(sockfd,&size,sizeof(size));
+	while(i<sizeof(size))
 	{
-		b=b+write(sockfd,(uint8_t *)(&size)[b],sizeof(size)-b);
+		i=i+write(sockfd,(uint8_t *)(&size)[i],sizeof(size)-i);
 	}
 	for(;size>0;)
 	{
-		i=read(filefd,a,4096);
-		size2=i;
-		b=write(sockfd,&size2,sizeof(size2));
-		while(b<sizeof(size2))
+		package1.data_size=read(filefd,package1.data,4096);
+		memcpy(temp,&package1,sizeof(struct package));
+		i=write(sockfd,temp,sizeof(temp));
+		while(i<sizeof(temp))
 		{
-			b=b+write(sockfd,(uint8_t *)(&size2)[b],sizeof(size2)-b);
+			i=i+write(sockfd,&(temp[i]),sizeof(temp)-i);
 		}
-		size=size-i;
-		b=write(sockfd,a,i);
-		while(b<i)
+		size-=package1.data_size;
+		loop_sync--;
+		if(loop_sync==0)
 		{
-			b=b+write(sockfd,&a[b],i-b);
-		}
-		b=read(sockfd,check,3);
-		while(b<3)
-		{
-			b+=read(sockfd,&check[b],3-b);
+			i=read(sockfd,check,3);
+			while(i<3)
+			{
+				i+=read(sockfd,&check[i],3-i);
+			}
+			loop_sync=~0;
 		}
 	}
 	close(filefd);
